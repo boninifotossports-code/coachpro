@@ -10,7 +10,7 @@ body {
   @apply bg-chalk-50 text-pitch-950 font-body;
 }
 
-h1, h2, h3, .font-display {
+h1, h2, h3 {
   @apply font-display tracking-wide;
 }
 
