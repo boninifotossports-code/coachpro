@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  @apply bg-chalk-50 text-pitch-950 font-body;
+}
+
+h1, h2, h3, .font-display {
+  @apply font-display tracking-wide;
+}
+
+/* respeita usuários com preferência por menos movimento */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
