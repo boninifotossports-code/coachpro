@@ -7,8 +7,8 @@ const BASE_NAV_ITEMS = [
   { to: '/clube', label: 'Clube', icon: '🛡️' },
   { to: '/elenco', label: 'Elenco', icon: '👥' },
   { to: '/sumula', label: 'Súmula', icon: '📋', disabled: true },
-  { to: '/treinos', label: 'Treinos', icon: '📅', disabled: true },
-  { to: '/exercicios', label: 'Exercícios', icon: '⚽', disabled: true },
+  { to: '/treinos', label: 'Treinos', icon: '📅' },
+  { to: '/exercicios', label: 'Exercícios', icon: '⚽' },
   { to: '/presenca', label: 'Presença', icon: '✅', disabled: true },
 ]
 
