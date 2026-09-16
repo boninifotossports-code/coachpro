@@ -23,18 +23,25 @@ export default function ClubInfo() {
 
   const [showTeamForm, setShowTeamForm] = useState(false)
   const [teamForm, setTeamForm] = useState(emptyTeamForm)
+  const [formError, setFormError] = useState('')
 
   const [newCompetition, setNewCompetition] = useState({ competition_name: '', objective: '' })
   const [newStaff, setNewStaff] = useState({ role_title: '', full_name: '', phone: '', email: '' })
 
   async function loadTeams() {
-    const { data } = await supabase
-      .from('teams')
-      .select('*')
-      .order('season', { ascending: false })
-    setTeams(data || [])
-    if (data && data.length && !teamId) setTeamId(data[0].id)
-    setLoading(false)
+    try {
+      const { data, error } = await supabase
+        .from('teams')
+        .select('*')
+        .order('season', { ascending: false })
+      if (error) throw error
+      setTeams(data || [])
+      if (data && data.length && !teamId) setTeamId(data[0].id)
+    } catch (err) {
+      console.error('Erro ao carregar quadros:', err.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function loadTeamDetails(id) {
@@ -58,11 +65,20 @@ export default function ClubInfo() {
 
   async function createTeam(e) {
     e.preventDefault()
-    const { data: profileData } = await supabase
+    setFormError('')
+
+    const { data: profileData, error: profileError } = await supabase
       .from('profiles')
       .select('club_id')
       .eq('id', profile.id)
       .single()
+
+    if (profileError || !profileData?.club_id) {
+      setFormError(
+        'Seu usuário ainda não está vinculado a um clube. Peça ao administrador para rodar o UPDATE de club_id no seu perfil (veja o README).'
+      )
+      return
+    }
 
     const { data, error } = await supabase
       .from('teams')
@@ -70,12 +86,15 @@ export default function ClubInfo() {
       .select()
       .single()
 
-    if (!error) {
-      setShowTeamForm(false)
-      setTeamForm(emptyTeamForm)
-      await loadTeams()
-      setTeamId(data.id)
+    if (error) {
+      setFormError(error.message)
+      return
     }
+
+    setShowTeamForm(false)
+    setTeamForm(emptyTeamForm)
+    await loadTeams()
+    setTeamId(data.id)
   }
 
   async function addCompetition(e) {
@@ -120,26 +139,36 @@ export default function ClubInfo() {
     >
       {loading ? (
         <p className="text-chalk-400">Carregando…</p>
-      ) : teams.length === 0 ? (
-        <EmptyState onCreate={() => setShowTeamForm(true)} isEditor={isEditor} />
       ) : (
         <>
-          <div className="mb-6 flex flex-wrap items-center gap-3">
-            <select
-              value={teamId || ''}
-              onChange={(e) => setTeamId(e.target.value)}
-              className="rounded-md border border-chalk-200 bg-white px-3 py-2 font-display text-base"
-            >
-              {teams.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.category} · {t.modality === 'futebol' ? 'Futebol' : 'Futsal'} · {t.season}
-                </option>
-              ))}
-            </select>
-          </div>
+          {teams.length > 0 && (
+            <div className="mb-6 flex flex-wrap items-center gap-3">
+              <select
+                value={teamId || ''}
+                onChange={(e) => setTeamId(e.target.value)}
+                className="rounded-md border border-chalk-200 bg-white px-3 py-2 font-display text-base"
+              >
+                {teams.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.category} · {t.modality === 'futebol' ? 'Futebol' : 'Futsal'} · {t.season}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {showTeamForm && (
-            <TeamForm form={teamForm} setForm={setTeamForm} onSubmit={createTeam} onCancel={() => setShowTeamForm(false)} />
+            <TeamForm
+              form={teamForm}
+              setForm={setTeamForm}
+              onSubmit={createTeam}
+              onCancel={() => setShowTeamForm(false)}
+              error={formError}
+            />
+          )}
+
+          {teams.length === 0 && !showTeamForm && (
+            <EmptyState onCreate={() => setShowTeamForm(true)} isEditor={isEditor} />
           )}
 
           {currentTeam && (
@@ -283,10 +312,14 @@ function InfoRow({ label, value }) {
   )
 }
 
-function TeamForm({ form, setForm, onSubmit, onCancel }) {
+function TeamForm({ form, setForm, onSubmit, onCancel, error }) {
   return (
     <form onSubmit={onSubmit} className="mb-6 grid gap-3 rounded-lg border border-chalk-200 bg-white p-5 sm:grid-cols-2 lg:grid-cols-3">
-      <input
+      {error && (
+        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600 sm:col-span-2 lg:col-span-3">
+          {error}
+        </p>
+      )}      <input
         required
         placeholder="Escalão (ex: Sub 10)"
         value={form.category}
