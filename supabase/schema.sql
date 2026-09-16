@@ -240,3 +240,145 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
+
+-- =========================================================
+-- MÓDULO: BANCO DE EXERCÍCIOS, MONTAGEM DE TREINOS
+-- E QUADRO SEMANAL
+-- =========================================================
+
+-- Pastas do banco de exercícios (ex: "Aquecimento", "Finalização", "Tático")
+create table if not exists public.exercise_folders (
+  id uuid primary key default gen_random_uuid(),
+  club_id uuid not null references public.clubs (id) on delete cascade,
+  name text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists exercise_folders_club_idx on public.exercise_folders (club_id);
+
+-- Banco de atividades/exercícios
+create table if not exists public.exercises (
+  id uuid primary key default gen_random_uuid(),
+  club_id uuid not null references public.clubs (id) on delete cascade,
+  folder_id uuid references public.exercise_folders (id) on delete set null,
+  name text not null,
+  objective text,
+  description text,
+  materials text,
+  duration_minutes int,
+  modality text not null default 'ambos' check (modality in ('futebol', 'futsal', 'ambos')),
+  diagram_url text,
+  created_by uuid references public.profiles (id),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists exercises_club_idx on public.exercises (club_id);
+create index if not exists exercises_folder_idx on public.exercises (folder_id);
+
+-- Sessões de treino montadas (uma lista ordenada de exercícios para um dia)
+create table if not exists public.training_sessions (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams (id) on delete cascade,
+  title text,
+  objective text,
+  created_by uuid references public.profiles (id),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists training_sessions_team_idx on public.training_sessions (team_id);
+
+create table if not exists public.training_session_exercises (
+  id uuid primary key default gen_random_uuid(),
+  session_id uuid not null references public.training_sessions (id) on delete cascade,
+  exercise_id uuid references public.exercises (id) on delete set null,
+  sort_order int not null default 0,
+  duration_minutes int,
+  notes text
+);
+
+create index if not exists tse_session_idx on public.training_session_exercises (session_id);
+
+-- Quadro semanal: um slot fixo por dia da semana (0=domingo ... 6=sábado),
+-- que pode ou não ter um treino montado vinculado
+create table if not exists public.weekly_schedule_slots (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams (id) on delete cascade,
+  day_of_week int not null check (day_of_week between 0 and 6),
+  start_time time,
+  end_time time,
+  location text,
+  training_session_id uuid references public.training_sessions (id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists wss_team_idx on public.weekly_schedule_slots (team_id);
+
+alter table public.exercise_folders enable row level security;
+alter table public.exercises enable row level security;
+alter table public.training_sessions enable row level security;
+alter table public.training_session_exercises enable row level security;
+alter table public.weekly_schedule_slots enable row level security;
+
+-- EXERCISE_FOLDERS
+create policy "exercise_folders_select"
+  on public.exercise_folders for select
+  using (club_id = public.current_club_id() and public.access_is_valid());
+
+create policy "exercise_folders_write"
+  on public.exercise_folders for all
+  using (club_id = public.current_club_id() and public.access_is_valid()
+         and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin', 'coach')))
+  with check (club_id = public.current_club_id());
+
+-- EXERCISES
+create policy "exercises_select"
+  on public.exercises for select
+  using (club_id = public.current_club_id() and public.access_is_valid());
+
+create policy "exercises_write"
+  on public.exercises for all
+  using (club_id = public.current_club_id() and public.access_is_valid()
+         and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin', 'coach')))
+  with check (club_id = public.current_club_id());
+
+-- TRAINING_SESSIONS
+create policy "training_sessions_select"
+  on public.training_sessions for select
+  using (exists (select 1 from public.teams t where t.id = team_id and t.club_id = public.current_club_id())
+         and public.access_is_valid());
+
+create policy "training_sessions_write"
+  on public.training_sessions for all
+  using (exists (select 1 from public.teams t where t.id = team_id and t.club_id = public.current_club_id())
+         and public.access_is_valid()
+         and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin', 'coach')));
+
+-- TRAINING_SESSION_EXERCISES
+create policy "tse_select"
+  on public.training_session_exercises for select
+  using (exists (
+    select 1 from public.training_sessions s
+    join public.teams t on t.id = s.team_id
+    where s.id = session_id and t.club_id = public.current_club_id()
+  ) and public.access_is_valid());
+
+create policy "tse_write"
+  on public.training_session_exercises for all
+  using (exists (
+    select 1 from public.training_sessions s
+    join public.teams t on t.id = s.team_id
+    where s.id = session_id and t.club_id = public.current_club_id()
+  ) and public.access_is_valid()
+    and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin', 'coach')));
+
+-- WEEKLY_SCHEDULE_SLOTS
+create policy "wss_select"
+  on public.weekly_schedule_slots for select
+  using (exists (select 1 from public.teams t where t.id = team_id and t.club_id = public.current_club_id())
+         and public.access_is_valid());
+
+create policy "wss_write"
+  on public.weekly_schedule_slots for all
+  using (exists (select 1 from public.teams t where t.id = team_id and t.club_id = public.current_club_id())
+         and public.access_is_valid()
+         and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin', 'coach')));
