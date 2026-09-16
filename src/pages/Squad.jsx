@@ -45,20 +45,41 @@ export default function Squad() {
   const positionOptions = POSITIONS[currentTeam?.modality] || POSITIONS.futebol
 
   async function loadTeams() {
-    const { data } = await supabase.from('teams').select('*').order('season', { ascending: false })
-    setTeams(data || [])
-    if (data && data.length && !teamId) setTeamId(data[0].id)
+    try {
+      const { data, error } = await supabase
+        .from('teams')
+        .select('*')
+        .order('season', { ascending: false })
+      if (error) throw error
+      setTeams(data || [])
+      if (data && data.length && !teamId) {
+        setTeamId(data[0].id)
+        return // loadPlayers vai desligar o loading quando terminar
+      }
+    } catch (err) {
+      console.error('Erro ao carregar quadros:', err.message)
+    }
+    // Sem nenhum quadro cadastrado (ou erro): não há atletas para buscar,
+    // então encerra o carregamento em vez de esperar para sempre.
+    setLoading(false)
   }
 
   async function loadPlayers(id) {
     setLoading(true)
-    const { data } = await supabase
-      .from('players')
-      .select('*')
-      .eq('team_id', id)
-      .order('jersey_number', { ascending: true, nullsFirst: false })
-    setPlayers(data || [])
-    setLoading(false)
+    try {
+      const { data, error } = await supabase
+        .from('players')
+        .select('*')
+        .eq('team_id', id)
+        .order('jersey_number', { ascending: true, nullsFirst: false })
+      if (error) throw error
+      setPlayers(data || [])
+    } catch (err) {
+      console.error('Erro ao carregar elenco:', err.message)
+      setPlayers([])
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -145,6 +166,16 @@ export default function Squad() {
         </select>
       )}
 
+      {teams.length === 0 && !loading && (
+        <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-chalk-200 bg-white py-16 text-center">
+          <p className="font-display text-xl text-pitch-950">Nenhum quadro cadastrado ainda</p>
+          <p className="max-w-sm text-sm text-chalk-600">
+            Vá em <strong>Clube</strong> e crie o primeiro escalão (categoria, modalidade e
+            temporada) antes de cadastrar atletas.
+          </p>
+        </div>
+      )}
+
       {showForm && (
         <PlayerForm
           form={form}
@@ -156,6 +187,7 @@ export default function Squad() {
         />
       )}
 
+      {teams.length > 0 && (
       <div className="overflow-x-auto rounded-lg border border-chalk-200 bg-white">
         <table className="w-full min-w-[720px] text-left text-sm">
           <thead className="bg-chalk-100 text-chalk-600">
@@ -211,6 +243,7 @@ export default function Squad() {
           </tbody>
         </table>
       </div>
+      )}
     </AppLayout>
   )
 }
