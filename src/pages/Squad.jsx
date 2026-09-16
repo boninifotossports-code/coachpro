@@ -111,18 +111,24 @@ export default function Squad() {
     setShowForm(true)
   }
 
+  const [formError, setFormError] = useState('')
+
   async function savePlayer(e) {
     e.preventDefault()
+    setFormError('')
     const payload = {
       ...form,
       jersey_number: form.jersey_number ? Number(form.jersey_number) : null,
       team_id: teamId,
     }
 
-    if (editingId) {
-      await supabase.from('players').update(payload).eq('id', editingId)
-    } else {
-      await supabase.from('players').insert(payload)
+    const { error } = editingId
+      ? await supabase.from('players').update(payload).eq('id', editingId)
+      : await supabase.from('players').insert(payload)
+
+    if (error) {
+      setFormError(error.message)
+      return
     }
 
     setShowForm(false)
@@ -184,6 +190,7 @@ export default function Squad() {
           onSubmit={savePlayer}
           onCancel={() => setShowForm(false)}
           editing={!!editingId}
+          error={formError}
         />
       )}
 
@@ -248,10 +255,14 @@ export default function Squad() {
   )
 }
 
-function PlayerForm({ form, setForm, positionOptions, onSubmit, onCancel, editing }) {
+function PlayerForm({ form, setForm, positionOptions, onSubmit, onCancel, editing, error }) {
   return (
     <form onSubmit={onSubmit} className="mb-6 grid gap-3 rounded-lg border border-chalk-200 bg-white p-5 sm:grid-cols-2 lg:grid-cols-4">
-      <input
+      {error && (
+        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600 sm:col-span-2 lg:col-span-4">
+          {error}
+        </p>
+      )}      <input
         type="number"
         placeholder="Nº"
         value={form.jersey_number}
