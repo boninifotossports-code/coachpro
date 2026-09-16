@@ -4,6 +4,8 @@ import Login from './pages/Login'
 import ClubInfo from './pages/ClubInfo'
 import Squad from './pages/Squad'
 import AdminUsers from './pages/AdminUsers'
+import Exercises from './pages/Exercises'
+import WeeklySchedule from './pages/WeeklySchedule'
 
 export default function App() {
   return (
@@ -24,6 +26,24 @@ export default function App() {
         element={
           <ProtectedRoute>
             <Squad />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/treinos"
+        element={
+          <ProtectedRoute>
+            <WeeklySchedule />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/exercicios"
+        element={
+          <ProtectedRoute>
+            <Exercises />
           </ProtectedRoute>
         }
       />
